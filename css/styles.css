@@ -1,0 +1,139 @@
+:root { 
+    font-family: system-ui, Roboto, Arial, sans-serif;
+ }
+    body { 
+        margin: 0; 
+        background: #0b0f17; 
+        color: #e9eefc; 
+    }
+    .wrap { 
+        max-width: 980px; 
+        margin: 0 auto; 
+        padding: 18px; 
+    }
+    
+    .grid { 
+        display: grid; 
+        gap: 14px; 
+        grid-template-columns: 1.1fr 0.9fr; 
+    }
+    
+    .card {
+      background: #121a2a; 
+      border: 1px solid #24304d; 
+      border-radius: 14px;
+      padding: 14px; 
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    
+    h1 { 
+        font-size: 20px; 
+        margin: 0 0 10px; 
+    }
+    
+    h2 { 
+        font-size: 16px; 
+        margin: 0 0 10px; 
+    }
+    
+    label { 
+        display: block; 
+        margin: 10px 0 6px; 
+        font-size: 13px; 
+        opacity: .9; 
+    }
+    
+    select, input {
+      width: 100%; 
+      padding: 10px; 
+      border-radius: 10px; 
+      border: 1px solid #2a395c;
+      background: #0f1524;  
+      color: #e9eefc;
+    }
+
+    .row { 
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 10px; 
+    }
+    
+    .btns { 
+        display: flex;
+        flex-wrap: wrap; 
+        gap: 10px; 
+        margin-top: 12px; 
+    }
+
+    button {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid #2a395c;
+        background: #182443; 
+        color: #e9eefc;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    button:hover { 
+        filter: brightness(1.08); 
+    }
+
+    button:disabled { 
+        opacity: .45; 
+        cursor: not-allowed; 
+    }
+    
+    .statline { 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 10px; 
+    }
+    
+    .pill {
+      border: 1px solid #2a395c; 
+      border-radius: 12px; 
+      padding: 10px;
+      background: #0f1524;
+    }
+    
+    .pill b { 
+        display: block; 
+        font-size: 12px; 
+        opacity: .8; 
+        margin-bottom: 4px; 
+    }
+    
+    .big { 
+        font-size: 18px; 
+        font-weight: 800; 
+    }
+    
+    .log {
+      height: 360px; 
+      overflow: auto; 
+      padding: 10px; 
+      border-radius: 12px;
+      border: 1px solid #2a395c; 
+      background: #0f1524; 
+      line-height: 1.35;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+    }
+    
+    .muted { 
+        opacity: .75; 
+        font-size: 13px; 
+    }
+    
+    .split { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        gap: 10px; 
+    }
+    
+    .hr { 
+        height: 1px; 
+        background: #24304d; 
+        margin: 12px 0; 
+    }

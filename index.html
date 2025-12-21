@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D&D Type Shit</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/main.js" defer></script>
+</head>
+<body>
+    <div class="wrap">
+        <div class="split-view">
+            <h1>Mini D&D</h1>
+            <div class="muted">Roll d20: 10+ succeeds, 1d6 damage</div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>Adventure</h2>
+
+                <div class="statline" id="statline">
+                    <div class="pill"><b>HP:</b><div class="big" id="uiHp">-</div></div>
+                    <div class="pill"><b>Enemy HP:</b><div class="big" id="uiEnemyHp">-</div></div>
+                    <div class="pill"><b>Class:</b><div class="big" id="uiClass">-</div></div>
+                    <div class="pill"><b>Spells:</b><div class="big" id="uiCharges">-</div></div>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="btns">
+                <button id="scoutBtn">Scout (DEX)</button>
+                <button id="talkBtn">Talk (CHA)</button>
+                <button id="attackBtn">Attack</button>
+                <button id="specialBtn">Special</button>
+                <button id="inventoryBtn">Inventory</button>
+                <button id="runBtn">Run</button>
+                <button id="nextBtn" disabled>Next Encounter</button>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="log" id="log" aria-live="polite"></div>
+        </div>
+
+        <div class="card">
+            <h2>Character Creation</h2>
+
+            <label>Name: <input type="input" id="name"></label>
+
+            <label>Class</label>
+            <select id="klass">
+                <option value="Fighter">Fighter (+2 weapon damage)</option>
+                <option value="Rogue">Rouge (+2 to Scout & dodging)</option>
+                <option value="Wizard">Wizard (3 spells per encounter)</option>
+                <option value="Cleric">Cleric (2 heals per game)</option>
+            </select>
+
+            <label>Choose one stat to boost with +2</label>
+            <select id="boost">
+                <option value="STR">Strength</option>
+                <option value="DEX">Dexterity</option>
+                <option value="INT">Intelligence</option>
+                <option value="CHA">Charisma</option>
+            </select>
+
+            <div class="hr"></div>
+
+            <div class="muted">
+                Base stats start at 2. You add +2 to one stat. </br>
+
+                HP = 10 + STR
+            </div>
+
+            <div class="btns">
+                <button id="StartBtn">Start Game</button>
+                <button id="Reset">Reset</button>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="pill">
+                <b>Stats</b>
+                <div class="muted" id="uiStats">-</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
