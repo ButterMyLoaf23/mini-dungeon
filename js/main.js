@@ -82,7 +82,7 @@ function updateUI() {
 
     if (p.klass === "Wizard") $("uiCharges").textContent = `${p.charges} spells`;
     else if (p.klass === "Cleric") $("uiCharges").textContent = `${p.charges} heals`;
-    else  $("uiCHarges").textContent = "-";
+    else  $("uiCharges").textContent = "-";
 
     const s = p.stats;
     $("uiStats").textContent = `STR ${s.STR} DEX ${s.DEX} INT ${s.INT} CHA ${s.CHA}`;
@@ -324,3 +324,23 @@ $("startBtn").addEventListener("click", () => {
     startEncounter();
 });
 
+$("resetBtn").addEventListener("click", resetGame);
+
+$("klass").addEventListener("change", () => {
+    if (!state.player) return;
+    setSpecialLabel();
+    updateUI();
+});
+
+$("scoutBtn").addEventListener("click", () => state.started && !state.gameOver && doScout());
+$("talkBtn").addEventListener("click", () => state.started && !state.gameOver && doTalk());
+$("attackBtn").addEventListener("click", () => state.started && !state.gameOver && doAttack());
+$("specialBtn").addEventListener("click", () => state.started && !state.gameOver && doSpecial());
+$("inventoryBtn").addEventListener("click", () => state.started && !state.gameOver && doInventory());
+$("runBtn").addEventListener("click", () => state.started && !state.gameOver && doRun());
+$("nextBtn").addEventListener("click", () => {
+    if (state.gameOver) return;
+    if (state.encounter < state.maxEncounters) startEncounter();
+});
+
+resetGame();
