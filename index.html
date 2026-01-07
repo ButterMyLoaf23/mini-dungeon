@@ -8,40 +8,135 @@
     <script src="/js/main.js" defer></script>
 </head>
 <body>
-    <header class="topbar">
-        <div class="title">Mini D&D</div>
+    <div class="wrap">
+            <header class="topbar">
+                <h1>Mini D&D</h1>
+                <div class="meta" id="uiRunMeta">Run: -</div>
+            </header>
 
-        <div class="top-actions">
-            <button id="saveBtn" class="secondary btn">Save</button>
-            <button id="loadBtn" class="secondary btn">Load</button>
-            <button id="resetBtn" class="danger btn">Reset</button>
-        </div>
-    </header>
-    <main class="layout">
+        <main class="grid">
 
-        <section class="card">
-            <div class="card-header">
-                <h2>Adventure</h2>
-                <div class="small" id="uiRunMeta">Run: -</div>
-            </div>
-
-            <div class="status-grid">
-                <div class="status">
-                    <div class="status-top">
-                        <span class="label">Player</span>
-                        <span class="value" id="uiPlayerName">-</span>
+            <section class="card">
+                <div class="cardheader">
+                    <h2>Adventure</h2>
+                    <div class="roomMeta">
+                        <div class="badge" id="uiRoomType">-</div>
+                        <div class="muted" id="uiRoomProgress">Room - / -</div>
                     </div>
-                    <div class="bar">
-                        <div class="bar-fill" id="barPlayerHp"></div>
+                </div>
+
+                <div class="roomBox">
+                    <div class="roomTitle" id="uiRoomTitle">Start a run</div>
+                    <div class="roomDesc" id="uiRoomDesc">Create your character and click start</div>
+                </div>
+
+                <div class="bars">
+                    <div class="barRow">
+                        <div class="label">
+                            <span class="name" id="uiPlayerName">-</span>
+                            <span class="value" id="uiPlayerHpText">-</span>
+                        </div>
+
+                        <div class="bar">
+                            <div class="fill" id="barPlayerHp"></div>
+                        </div>
                     </div>
+
+                    <div class="barRow">
+                        <div class="label">
+                            <span class="name">Enemies</span>
+                            <span class="value" id="uiEnemiesHpText">-</span>
+                        </div>
+
+                        <div class="bar">
+                            <div class="fill" id="barEnemiesHp"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="split">
+                    <div class="panel">
+                        <h3>Enemies</h3>
+                        <div class="enemyControls">
+                            <label for="selectTarget" class="muted">Target</label>
+                            <select id="selectTarget"></select>
+                        </div>
+                        <div class="enemyList" id="uiEnemyList"></div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Inventory</h3>
+                        <div class="invGrid">
+                            <div class="invItem"><span class="muted">Class</span><b id="uiClass">-</b></div>
+                            <div class="invItem"><span class="muted">Gold</span><b id="uiGold">-</b> </div>
+                            <div class="invItem"><span class="muted">Potions</span><b id="uiPotions">-</b> </div>
+                            <div class="invItem"><span class="muted">Weapon</span><b id="uiWeapon">-</b> </div>
+                        </div>
+                        <div class="muted statsLine" id="uiStats">-</div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="attackBtn" disabled>Attack</button>
+                    <button id="specialBtn" disabled>Special</button>
+                    <button id="potionBtn" disabled>Use Potion</button>
+                    <button id="fleeBtn" disabled>Flee</button>
+                </div>
+
+                <div class="nav">
+                    <button id="leftBtn" disabled>Left</button>
+                    <button id="forwardBtn" disabled>Forward</button>
+                    <button id="rightBtn" disabled>Right</button>
+                    <button id="nextRoom" disabled>Continue</button>
+                </div>
+
+                <div class="log" id="log" aria-live="polite"></div>
+            </section>
+
+            <aside class="card">
+                <h2>Charcater Setup</h2>
+
+                <label>Name</label>
+                <input id="name"/>
+
+                <label>Class</label>
+                <select id="klass">
+                    <option value="Fighter">Fighter (+2 weapon damage)</option>
+                    <option value="Rogue">Rogue (Better dodging and scouting abilities)</option>
+                    <option value="Wizard">Wizard (3 spells)</option>
+                    <option value="Cleric">Cleric (2 heals)</option>
+                </select>
+
+                <label>Choose your stat boost</label>
+                <select id="boost">
+                    <option value="STR">Strength</option>
+                    <option value="DEX">Dexterity</option>
+                    <option value="INT">Intelligence</option>
+                    <option value="CHA">Charisma</option>
+                </select>
+
+                <div class="actions">
+                    <button id="startBtn">Start</button>
+                    <button id="saveBtn">Save</button>
+                    <button id="loadBtn">Load</button>
+                    <button id="resetBtn">Reset</button>
+                </div>
+
+                <div class="muted small"></div>
+            </aside>
+
+
+
                     <div class="status-bottom">
                         <span id="uiPlayerHp">-</span>
                         <span class="pill" id="uiClass">-</span>
                     </div>
+                    </div>
+                </div>
                 </div>
 
                 <div class="status">
-                    <div class="status-top">>
+                    <div class="status-top">
                         <span class="label">Enemies</span>
                         <span class="value" id="uiEnemyCount">-</span>
                     </div>
