@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mini D&D</title>
     <link rel="stylesheet" href="/css/styles.css">
-    <script src="/js/main.js" defer></script>
 </head>
 <body>
     <div class="wrap">
@@ -77,17 +76,17 @@
                 </div>
 
                 <div class="actions">
-                    <button id="attackBtn" disabled>Attack</button>
-                    <button id="specialBtn" disabled>Special</button>
-                    <button id="potionBtn" disabled>Use Potion</button>
-                    <button id="fleeBtn" disabled>Flee</button>
+                    <button id="btnAttack" disabled>Attack</button>
+                    <button id="btnSpecial" disabled>Special</button>
+                    <button id="btnPotion" disabled>Use Potion</button>
+                    <button id="btnFlee" disabled>Flee</button>
                 </div>
 
                 <div class="nav">
-                    <button id="leftBtn" disabled>Left</button>
-                    <button id="forwardBtn" disabled>Forward</button>
-                    <button id="rightBtn" disabled>Right</button>
-                    <button id="nextRoom" disabled>Continue</button>
+                    <button id="btnLeft" disabled>Left</button>
+                    <button id="btnForward" disabled>Forward</button>
+                    <button id="btnRight" disabled>Right</button>
+                    <button id="btnNextRoom" disabled>Continue</button>
                 </div>
 
                 <div class="log" id="log" aria-live="polite"></div>
@@ -121,10 +120,28 @@
                     <button id="loadBtn">Load</button>
                     <button id="resetBtn">Reset</button>
                 </div>
-
-                <div class="muted small"></div>
             </aside>
+        </main>
+    </div>
 
+    <div id="lvlOverlay" class="overlay hidden" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lvlTitle">
+            <h2 id="lvlTitle">Level Up!</h2>
+            <p class="muted" id="lvlDesc">Choose one stat to increase by +1</p>
+
+            <div class="lvlGrid">
+                <button id="btnLvlStr">+1 STR</button>
+                <button id="btnLvlDex">+1 DEX</button>
+                <button id="btnLvlInt">+1 INT</button>
+                <button id="btnLvlCha">+1 CHA</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    </body>
+    </html>
+<!-- 
 
 
                     <div class="status-bottom">
@@ -257,4 +274,4 @@
         </aside>
     </main>          
 </body>
-</html>
+</html> -->

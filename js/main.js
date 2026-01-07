@@ -1,718 +1,798 @@
-// Utilities //
+// ---------- DOM helpers ----------
 const $ = (id) => document.getElementById(id);
 
-function randInt(min, max) {return Math.floor(Math.random() * (max - min + 1)) + min;}
-function d20() {return randInt(1, 20);}
-function d6() {return randInt(1, 6);}
-function clamp(n, a, b) {return Math.max(a, Math.min(b, n));}
+const el = {
+  runMeta: $("uiRunMeta"),
+  roomType: $("uiRoomType"),
+  roomProgress: $("uiRoomProgress"),
+  roomTitle: $("uiRoomTitle"),
+  roomDesc: $("uiRoomDesc"),
 
-const Storage_Key = "Save v1"
+  playerName: $("uiPlayerName"),
+  playerHpText: $("uiPlayerHpText"),
+  enemiesHpText: $("uiEnemiesHpText"),
+  barPlayerHp: $("barPlayerHp"),
+  barEnemiesHp: $("barEnemiesHp"),
 
-// Game State//
-const state = {
-    runId: 0,
-    roomIndex: 0,
-    maxRooms: 10,
-    room: null,
-    started: false,
-    player: null,
-    enemies: [],
-    merchantHere: false,
-    gameOver: false,
+  enemyList: $("uiEnemyList"),
+  selTarget: $("selTarget"),
+
+  uiClass: $("uiClass"),
+  uiGold: $("uiGold"),
+  uiPotions: $("uiPotions"),
+  uiWeapon: $("uiWeapon"),
+  uiStats: $("uiStats"),
+  uiLevel: $("uiLevel"),
+  uiXp: $("uiXp"),
+
+  log: $("log"),
+
+  // Setup
+  name: $("name"),
+  klass: $("klass"),
+  boost: $("boost"),
+
+  // Buttons
+  btnStart: $("btnStart"),
+  btnSave: $("btnSave"),
+  btnLoad: $("btnLoad"),
+  btnReset: $("btnReset"),
+
+  btnAttack: $("btnAttack"),
+  btnSpecial: $("btnSpecial"),
+  btnPotion: $("btnPotion"),
+  btnFlee: $("btnFlee"),
+
+  btnLeft: $("btnLeft"),
+  btnForward: $("btnForward"),
+  btnRight: $("btnRight"),
+  btnNextRoom: $("btnNextRoom"),
+
+  // Level-up modal
+  lvlOverlay: $("lvlOverlay"),
+  btnLvlStr: $("btnLvlStr"),
+  btnLvlDex: $("btnLvlDex"),
+  btnLvlInt: $("btnLvlInt"),
+  btnLvlCha: $("btnLvlCha"),
 };
 
-function logLine(text, tone = "line") {
-    const log = $("log");
-    const div = document.createElement("div");
-    div.className = `line ${tone}`;
-    log.appendChild(div);
-    log.scrollTop = log.scrollHeight;
+// ---------- RNG ----------
+const d = (n) => Math.floor(Math.random() * n) + 1;
+const d20 = () => d(20);
+const d6 = () => d(6);
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+// ---------- Save/Load ----------
+const SAVE_KEY = "miniDnD_save_v2";
+
+// ---------- Game state ----------
+const state = {
+  started: false,
+  runId: 0,
+  roomIndex: 0,
+  maxRooms: 7, // boss at final room
+  room: null,
+
+  player: null,
+  enemies: [],
+  awaitingNav: false,
+  gameOver: false,
+
+  levelUpPending: false,
+  queuedLevelUps: 0,
+};
+
+// ---------- Logging ----------
+function logLine(text, cssClass) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  if (cssClass) div.classList.add(cssClass);
+  el.log.appendChild(div);
+  el.log.scrollTop = el.log.scrollHeight;
 }
 
-function shake(el) {
-    el.classList.remove("shake");
-    void el.offsetWidth;
-    el.classList.add("shake");
+// ---------- UI enable/disable ----------
+function setActionButtons(enabled) {
+  el.btnAttack.disabled = !enabled;
+  el.btnSpecial.disabled = !enabled;
+  el.btnPotion.disabled = !enabled;
+  el.btnFlee.disabled = !enabled;
 }
 
+function setNavButtons(enabled) {
+  el.btnLeft.disabled = !enabled;
+  el.btnForward.disabled = !enabled;
+  el.btnRight.disabled = !enabled;
+  el.btnNextRoom.disabled = !enabled;
+}
+
+// ---------- Model ----------
 function makePlayer(name, klass, boostStat) {
-    const stats = { STR: 2, DEX: 2, INT: 2, CHA: 2 };
-    stats[boostStat] += 2;
+  const stats = { STR: 2, DEX: 2, INT: 2, CHA: 2 };
+  stats[boostStat] += 2;
 
-    const hpMax = 10 + stats.STR;
-    const charges = (klass === "Wizard") ? 3 : (klass === "Cleric" ? 2:0);
+  const hpMax = 10 + stats.STR;
+  const charges = klass === "Wizard" ? 3 : (klass === "Cleric" ? 2 : 0);
 
-    return {
-        name: name || "Hero",
-        klass,
-        stats,
-        hp: hpMax,
-        hpMax,
-        charges,
-        gold: 0,
-        potions: 1,
-        weaponLevel: 0,
-    };
+  return {
+    name: name || "Hero",
+    klass,
+    stats,
+    hp: hpMax,
+    hpMax,
+    charges,
+
+    // inventory/loot
+    gold: 0,
+    potions: 1,
+    weaponLevel: 0,
+
+    // XP/Level
+    level: 1,
+    xp: 0,
+    xpToNext: xpNeededForLevel(1),
+  };
 }
 
-function makeEnemyPack(roomIndex) {
-    const bossRoom = roomIndex >= state.maxRooms;
-    if (bossRoom) {
-        const hp = 28;
-        return [{
-            name: "Goblin Chief",
-            hp,
-            hpMax: hp,
-            atkBonus: 2,
-            isBoss: true
-        }];
-    }
+function makeEnemiesForRoom(roomIndex) {
+  const isBossRoom = roomIndex === state.maxRooms;
+  if (isBossRoom) {
+    const hp = 30 + roomIndex * 2;
+    return [{
+      id: "boss",
+      name: "Goblin King",
+      hp,
+      hpMax: hp,
+      atkBonus: 3 + Math.floor(roomIndex / 3),
+      isBoss: true,
+    }];
+  }
 
-    const count = randInt(1, 3);
-    const baseHp = 6 + Math.floor(roomIndex / 2);
-    const atkBonus = Math.floor(roomIndex / 3);
-
-    const enemies = [];
-    for (let i = 0; i < count; i++) {
-        const hp = baseHp + randInt(0, 3);
-        enemies.push ({
-            name: count === 1 ? "Goblin" : `Goblin ${i + 1}`,
-            hp,
-            hpMax: hp,
-            atkBonus,
-            isBoss: false
-        });
-    }    
-    return enemies;
-}
-
-    function totalEnemyHp() {
-        return state.enemies.reduce((sum, e) => sum + Math.max(0, e.hp), 0);
-    }
-
-    function totalEnemyHpMax() {
-        return state.enemies.reduce((sum, e) => sum + e.hpMax, 0)
-    }
-
-    function livingEnemies() {
-        return state.enemies.filter(e => e.hp > 0);
-    }
-
-    function currentRoomLabel (type) {
-        const map = {
-            start: "Start",
-            combat: "Combat",
-            treasure: "Treasure",
-            trap: "Trap",
-            merchant: "Merchant",
-            rest: "Rest",
-            boss: "Boss"
-        };
-        return map [type] || type;
-    }
-
-    function setSpecialLabel() {
-        const p = state.player;
-        if (!p) return;
-
-        const btn = $(specialBtn);
-        if (p.klass === "Wizard") btn.textContent = "Cast Spell";
-        else if (p.klass === "Clerick") btn.textContent = "Heal";
-        else if (p.klass === "Rogue") btn.textContent = "Dodge";
-        else btn.textContent = "Power Strike";
-    }
-
-    function setControls({ roomChoices, combat, nextRoom, merchant }) {
-        $("leftBtn").disabled = !roomChoices;
-        $("forwardBtn").disabled = !roomChoices;
-        $("rightBtn").disabled = !roomChoices;
-
-        $("attackBtn").disabled = !combat;
-        $("specialBtn").disabled = !combat;
-        $("potionBtn").disabled = !combat;
-        $("runBtn").disabled = !combat;
-
-        $("nextRoomBtn").disabled = !nextRoom;
-
-        $("buyPotionBtn").disabled = !merchant;
-        $("buyUpgradeBtn").disabled = !merchant;
-    }
-
-    function updateUI() {
-        const p = state.player;
-
-        $("uiRunMeta").textContent = state.started ? `Run #${state.runId} Room ${state.roomIndex} / $state.maxRooms}` : "Run : -";
-
-        if (!p) {
-            $("uiPlayerName").textContent = "-";
-            $("uiPlayerHp").textContent = "-";
-            $("uiEnemiesHp").textContent = "-";
-            $("uiEnemyCount").textContent = "-";
-            $("uiClass").textContent = "-";
-            $("uiRoomType").textContent = "-";
-            $("uiRoomTitle").textContent = "-";
-            $("uiRoomDesc").textContent = "-";
-
-            $("uiGold").textContent = "-";
-            $("uiPotions").textContent = "-";
-            $("uiWeapons").textContent = "-";
-            $("uiStats").textContent = "-";
-
-            $("barPlayerHp").textContent = "-";
-            $("barEnemiesHp").textContent = "-";
-            $("uiEnemiesList").innerHTML = "";
-        // Will come back to this when I figure out inventory$
-        // ("uiInventory").textContent = "-";
-        return;
-    }
-
-    $("uiPlayerName").textContent = p.name;
-    $("uiPlayerHp").textContent = `${p.hp} / ${p.hpMax}`;
-    $("uiClass").textContent = p.klass;
-
-    $("uiGold").textContent = `${p.gold}g`;
-    $("uiPotions").textContent = `{p.potions}`;
-    $("uiWeapon").textContent = p.weaponLevel > 0 ? `+${p.weaponLevel} blade` : "Rusty";
-    $("uiStats").textContent = `STR ${p.stats.STR}, DEX ${p.stats.DEX}, INT ${p.stats.INT}, CHA ${p.stats.CHA}`;
-
-    const phpPct = (p.hpMax ? (p.hp / p.hpMax) : 0) * 100;
-    $("barPlayerHp").style.width = `${clamp(phpPct, 0, 100)}%`;
-    $("barPlayerHp").style.background = phpPct <= 25 ? "var(--bad)" : "var(--good)";
-
-    if (state.room) {
-        $("uiRoomType").textContent = currentRoomLabel(state.room.type);
-        $("uiRoomtitle").textContent = state.room.title;
-        $("uiRoomDesc").textContent = state.room.desc;
-    } else {
-        $("uiRoomType").textContent = "-";
-        $("uiRoomTitle").textContent = "-";
-        $("uiRoomDesc").textContent = "-";
-    }
-
-    const alive = livingEnemies();
-    $("uiEnemyCount").textContent = alive.length ? `${alive.length} alive` : "0 alive";
-
-    const ehp = totalEnemyHp();
-    const ehpMax = totalEnemyHp();
-    $("uiEnemiesHp").textContent = ehpMax ? `${ehp} / ${ehpMax}` : "-";
-
-    const ehpPct = (ehpMax ? (ehp / ehpMax) : 0) * 100;
-    $("barEnemiesHp").style.width = `${clamp(ehpPct, 0, 100)}%`;
-    $("barEnemiesHp").style.background = state.room?.type === "boss" ? "var(--warn)" : "var(--accent)";
-
-
-    const list = $("uiEnemiesList");
-    list.innerHTML = "";
-    for (const e of state.enemies) {
-        const row = document.createElement("div");
-        row.className = "enemy";
-        row.innerHTML = `
-        <div>
-            <div class="enemy-name">
-                ${e.name} ${e.isBoss ? "" : ""}
-            </div>
-            <div class="enemy-hp">
-                HP: $${Math.max(0, e.hp)} / ${e.hpMax}
-            </div>
-            <div class="pill">
-                ${e.hp > 0 ? "Alive" : "Down"}
-            </div>
-            `;
-        list.appendChild(row);
-    }
-
-    const merchant = !!state.merchantHere;
-    setControls({
-        roomChoices: state.started && !state.gameOver && !merchant && !isInCombat() && !$(nextRoomBtn).disabled,
-        combat: state.started && !state.gameOver && isInCombat(),
-        nextRoom: state.started && !state.gameOver && !isInCombat(),
-        merchant,
+  const count = clamp(1 + Math.floor((roomIndex - 1) / 2), 1, 3);
+  const enemies = [];
+  for (let i = 0; i < count; i++) {
+    const hp = 10 + roomIndex * 2 + (i * 2);
+    enemies.push({
+      id: `g${roomIndex}_${i}`,
+      name: count === 1 ? "Goblin" : `Goblin ${i + 1}`,
+      hp,
+      hpMax: hp,
+      atkBonus: Math.floor(roomIndex / 3),
+      isBoss: false,
     });
-
-    setSpecialLabel();
+  }
+  return enemies;
 }
 
-function isInCombat() {
-    return state.room?.type === "combat" || state.room?.type === "boss";
+function livingEnemies() {
+  return state.enemies.filter(e => e.hp > 0);
+}
+function totalEnemyHp() {
+  return state.enemies.reduce((sum, e) => sum + Math.max(0, e.hp), 0);
+}
+function totalEnemyHpMax() {
+  return state.enemies.reduce((sum, e) => sum + e.hpMax, 0);
 }
 
-function startRun() {
-    const name = $("name").value.trim();
-    const klass = $("klass").value;
-    const boost = $("boost").value;
-
-    state.runId += 1;
-    state.started = true;
-    state.gameOver = false;
-    state.roomIndex = 0;
-    state.room = null;
-    state.enemies = [];
-    state.merchantHere = false;
-    state.player = makePlayer(name, klass, boost);
-
-    $("log").innerHTML = "";
-    logLine(`Welcome, ${state.player.name} the ${state.player.klass}!`, "info");
-    logLine(`You step into a dark dungeon...`, "info");
-
-    nextRoom("start");
+// ---------- Rooms ----------
+function rollRoomType(roomIndex) {
+  if (roomIndex === state.maxRooms) return "BOSS";
+  const r = Math.random();
+  if (r < 0.55) return "COMBAT";
+  if (r < 0.72) return "TREASURE";
+  if (r < 0.88) return "EVENT";
+  return "REST";
 }
 
-function nextRoom(forcedType = null) {
-    if (!state.started || state.gameOver) return;
+function generateRoom(roomIndex, chosenDir) {
+  const type = rollRoomType(roomIndex);
+  if (type === "COMBAT") return { type, title: "Ambush!", desc: "Goblins leap from the shadows.", dir: chosenDir };
+  if (type === "BOSS") return { type, title: "Throne Room", desc: "The Goblin King rises with a roar.", dir: chosenDir };
+  if (type === "TREASURE") return { type, title: "Treasure Stash", desc: "A hidden cache behind loose stone.", dir: chosenDir };
+  if (type === "REST") return { type, title: "Quiet Corner", desc: "You catch your breath and patch up.", dir: chosenDir };
+  return { type, title: "Strange Happenings", desc: "Something unexpected happens…", dir: chosenDir };
+}
 
-    state.roomIndex += 1;
-    state.merchantHere = false;
-    state.enemies = [];
+// ---------- Targeting / enemy UI ----------
+function updateTargets() {
+  el.selTarget.innerHTML = "";
+  const alive = livingEnemies();
+  if (alive.length === 0) {
+    el.selTarget.innerHTML = "<option>—</option>";
+    el.selTarget.disabled = true;
+    return;
+  }
+  el.selTarget.disabled = false;
+  for (const e of alive) {
+    const opt = document.createElement("option");
+    opt.value = e.id;
+    opt.textContent = `${e.name} (${e.hp}/${e.hpMax})${e.isBoss ? " ★" : ""}`;
+    el.selTarget.appendChild(opt);
+  }
+}
 
-    if (state.roomIndex > state.maxRooms) {
-        return;
+function renderEnemyList() {
+  el.enemyList.innerHTML = "";
+  for (const e of state.enemies) {
+    const row = document.createElement("div");
+    row.className = "enemyCard";
+
+    const left = document.createElement("div");
+    left.className = "enemyName";
+    left.textContent = e.name;
+
+    if (e.isBoss) {
+      const tag = document.createElement("span");
+      tag.className = "bossTag";
+      tag.textContent = "BOSS";
+      left.appendChild(tag);
     }
 
-    let type;
-    if (state.roomIndex === state.maxRooms) type = "boss";
-    else type = forcedType || rollRoomType();
+    const right = document.createElement("div");
+    right.className = "enemyHp";
+    right.textContent = `${Math.max(0, e.hp)}/${e.hpMax}`;
 
-    state.room = makeRoom(type);
-    logLine(`- Room ${state.roomIndex} / ${state.maxRooms}: ${state.room.title} -`, "info");
-    logLine(state.room.desc);
-
-    if (type === "combat" || type === "boss") {
-        state.enemies = makeEnemyPack(state.roomIndex);
-        logLine(type === "boss" ? "A boss blocks your path!" : "Enemies appear!", type === "boss" ? "warn" : "bad");
-        setControls({ roomChoices: false, combat: true, nextRooms: false, merchant: false });
-    } else if (type === "treasure") {
-        resolveTresureRoom();
-        setControls ({ roomChoices: true, combat: false, nextRoom: true, mechant: false });
-    } else if (type === "trap") {
-        resolveTrapRoom();
-        setControls ({ roomChoices: true, combat: false, nextRoom: true, merchant: false });
-    } else if (type === "merchant") {
-        state.merchantHere = true;
-        logLine("A merchant offers supplies.", "info");
-        setControls ({ roomChoices: false, combat: false, nextRoom: true, merchant: true });
-    } else if (type === "rest") {
-        resolveRestRoom();
-        setControls ({ roomChoices: true, combat: false, nextRoom: true, merchant: false });
-    } else {
-        setControls ({ roomChoices: true, comabt: false, nextRoom: true, merchant: false });
-    }
-
-    $("nextRoomBtn").disabled = false;
-    updateUI();
+    row.appendChild(left);
+    row.appendChild(right);
+    el.enemyList.appendChild(row);
+  }
 }
 
-function rollRoomType() {
-    const roll = randInt(1, 100);
-    if (roll <= 40) return "combat";
-    if (roll <= 60) return "treasure";
-    if (roll <= 75) return "trap";
-    if (roll <= 88) return "merchant";
-    return "rest";
+function setSpecialLabel() {
+  const p = state.player;
+  if (!p) { el.btnSpecial.textContent = "Special"; return; }
+  if (p.klass === "Wizard") el.btnSpecial.textContent = "Cast Spell";
+  else if (p.klass === "Cleric") el.btnSpecial.textContent = "Heal Prayer";
+  else if (p.klass === "Rogue") el.btnSpecial.textContent = "Dodge";
+  else el.btnSpecial.textContent = "Power Strike";
 }
 
-function makeRoom(type) {
-    const rooms = {
-        start: { title: "Dungeon Entrance", desc: "Cold air pours from the stone hallway. Three paths branch ahead." },
-        combat: { title: "Goblin Ambush", desc: "you hear chittering... shadows dart behind broken pillars." },
-        treasure: { title: "Abandoned Cache", desc: "A cracked chest sits in the dust. Something glints inside." },
-        trap: { title: "Trap Corridor", desc: "The floor tiles look... suspicious." },
-        merchant: { title: "Hidden Merchant", desc: "A cloaked figure waves you closer. 'Gold for goods.'" },
-        rest: { title: "Quiet Alcove", desc: "A rare calm. You can catch your breath here." },
-        boss: { title: "Throne of Scraps", desc: "A hulking goblin chief rises from a pile of human remains." }
-    };
-    return { type, ...rooms[type] };
+// ---------- XP / Leveling ----------
+function xpNeededForLevel(level) {
+  // XP to go from this level -> next
+  // Level 1: 20, Level 2: 35, Level 3: 55, ...
+  const L = Math.max(1, level);
+  return Math.floor(20 + (L - 1) * 10 + (L - 1) * (L - 1) * 5);
 }
 
-function resolveTreasureRoom() {
-    const p = state.player;
-    const gold = randInt(6, 18);
-    p.gold += gold;
-
-    const potionChance = randInt(1, 100);
-    const weaponChance = randInt(1, 100);
-
-    logLine(`You find ${gold} gold.`, "good");
-
-    if (potionChance <= 25) {
-        p.potions + 1;
-        logLine(" You also found a potion (+1).", "good");
-    }
-
-    if (weaponChance <= 25) {
-        p.weaponLevel += 1;
-        logLine(`You found an upgrade for your sword! (Weapon +${p.weaponLevel})`, "good");
-    }
+function openLevelUpModal() {
+  state.levelUpPending = true;
+  setActionButtons(false);
+  setNavButtons(false);
+  el.lvlOverlay.classList.remove("hidden");
+  el.lvlOverlay.setAttribute("aria-hidden", "false");
 }
 
-function resolveTrapRoom() {
-    const p = state.player;
-    const roll = d20() + p.stats.DEX;
-    if (roll >= 12) {
-        logLine(`Trap check: You dodged it! (d20 + DEX = ${roll})`, "good");
-    } else {
-        const dmg = d6() + 1;
-        p.hp = clamp(p.hp - dmg, 0, p.hpMax);
-        logLine(`You fell for the trap! You take ${dmg} damage. (d20 + DEX = ${roll})`, "bad");
-        shake($("barPlayerHp"));
-        checkGameOver();
-    }
+function closeLevelUpModal() {
+  el.lvlOverlay.classList.add("hidden");
+  el.lvlOverlay.setAttribute("aria-hidden", "true");
+  state.levelUpPending = false;
+
+  const inCombat = (state.room?.type === "COMBAT" || state.room?.type === "BOSS") && livingEnemies().length > 0;
+  setActionButtons(inCombat && !state.gameOver);
+  setNavButtons(state.awaitingNav && !state.gameOver);
 }
 
-function resolveRestRoom() {
-    const p = state.player;
-    const heal = randInt(2, 6) + Math.floor(p.stats.CHA / 2);
-    p.hp = clamp(p.hp + heal, 0, p.hpMax);
-    logLine(`You rest and recover ${heal} HP.`, "good");
+function beginLevelUp() {
+  if (!state.player) return;
+  if (state.queuedLevelUps <= 0) return;
+  openLevelUpModal();
 }
 
-function pickTarget() {
-    return livingEnemies() [0] || null;
+function applyLevelChoice(statKey) {
+  const p = state.player;
+  if (!p || !state.levelUpPending) return;
+
+  state.queuedLevelUps -= 1;
+
+  p.level += 1;
+
+  const hpGain = 4 + Math.floor(p.level / 2);
+  p.hpMax += hpGain;
+  p.hp = p.hpMax;
+
+  p.stats[statKey] += 1;
+
+  p.xpToNext = xpNeededForLevel(p.level);
+
+  logLine(`LEVEL UP! You are now level ${p.level}.`, "loot");
+  logLine(`You chose +1 ${statKey}. Max HP +${hpGain}.`, "loot");
+
+  updateUI();
+
+  if (state.queuedLevelUps > 0) beginLevelUp();
+  else closeLevelUpModal();
 }
 
-function attackDamageBase() {
-    const p =state.player;
-    return d6() + p.stats.STR + p.weaponLevel + (p.klass === "Fighter" ? 2 : 0);
+function gainXp(amount) {
+  const p = state.player;
+  if (!p || state.gameOver) return;
+
+  p.xp += amount;
+  logLine(`You gain ${amount} XP.`);
+
+  // Queue level-ups (supports multiple levels at once)
+  while (p.xp >= p.xpToNext) {
+    p.xp -= p.xpToNext;
+    state.queuedLevelUps += 1;
+    // estimate next threshold for the queued levels (keeps UI sane)
+    p.xpToNext = xpNeededForLevel((p.level || 1) + state.queuedLevelUps);
+  }
+
+  if (state.queuedLevelUps > 0 && !state.levelUpPending) beginLevelUp();
+  updateUI();
 }
 
-function doAttack() {
-    if (!isInCombat() || state.gameOver) return;
+// ---------- UI update ----------
+function updateUI() {
+  const p = state.player;
 
-    const p = state.player;
-    const target = pickTarget();
-    if (!target) return;
+  el.runMeta.textContent = state.started ? `Run #${state.runId} • Room ${state.roomIndex}/${state.maxRooms}` : "Run: —";
+  el.roomProgress.textContent = state.started ? `Room ${state.roomIndex} / ${state.maxRooms}` : "Room — / —";
 
-    const roll = d20();
-    const hit = roll >= 10;
+  if (!p) {
+    el.playerName.textContent = "—";
+    el.playerHpText.textContent = "—";
+    el.enemiesHpText.textContent = "—";
+    el.uiClass.textContent = "—";
+    el.uiGold.textContent = "—";
+    el.uiPotions.textContent = "—";
+    el.uiWeapon.textContent = "—";
+    el.uiStats.textContent = "—";
+    el.uiLevel.textContent = "—";
+    el.uiXp.textContent = "—";
 
-    if (hit) {
-        const dmg = attackDamageBase();
-        target.hp = clamp(target.hp - dmg, 0, target.hpMax);
-        logLine(`Attack: d20(${roll}) HIT ${target.name} takes ${dmg}.`, "good");
-        shake($(barEnemiesHp));
-    } else {
-        logLine(`Attack: d20(${roll}) MISS.`, "warn");
-    }
+    el.roomType.textContent = "—";
+    el.roomTitle.textContent = "Start a run";
+    el.roomDesc.textContent = "Create your character and click Start.";
 
-    endPlayerAction();
+    el.barPlayerHp.style.width = "0%";
+    el.barEnemiesHp.style.width = "0%";
+
+    el.enemyList.innerHTML = "";
+    el.selTarget.innerHTML = "<option>—</option>";
+    el.selTarget.disabled = true;
+    return;
+  }
+
+  el.playerName.textContent = p.name;
+  el.playerHpText.textContent = `${p.hp}/${p.hpMax}`;
+  el.enemiesHpText.textContent = `${totalEnemyHp()}/${totalEnemyHpMax()}`;
+
+  el.uiClass.textContent = p.klass;
+  el.uiGold.textContent = `${p.gold}g`;
+  el.uiPotions.textContent = `${p.potions}`;
+  el.uiWeapon.textContent = p.weaponLevel > 0 ? `+${p.weaponLevel} blade` : "Rusty";
+
+  el.uiLevel.textContent = `${p.level}`;
+  el.uiXp.textContent = `${p.xp}/${p.xpToNext}`;
+
+  el.uiStats.textContent = `STR ${p.stats.STR} • DEX ${p.stats.DEX} • INT ${p.stats.INT} • CHA ${p.stats.CHA}`;
+
+  const room = state.room;
+  el.roomType.textContent = room ? room.type : "—";
+  el.roomTitle.textContent = room ? room.title : "—";
+  el.roomDesc.textContent = room ? room.desc : "—";
+
+  const phpPct = (p.hpMax ? (p.hp / p.hpMax) : 0) * 100;
+  el.barPlayerHp.style.width = `${clamp(phpPct, 0, 100)}%`;
+  el.barPlayerHp.style.background = phpPct <= 25 ? "var(--bad)" : "var(--good)";
+
+  const ehpMax = totalEnemyHpMax();
+  const ehpPct = (ehpMax ? (totalEnemyHp() / ehpMax) : 0) * 100;
+  el.barEnemiesHp.style.width = `${clamp(ehpPct, 0, 100)}%`;
+  el.barEnemiesHp.style.background = ehpPct <= 25 ? "var(--bad)" : "var(--accent)";
+
+  updateTargets();
+  renderEnemyList();
+  setSpecialLabel();
 }
 
-function doSpecial() {
-    if (!isInCombat() || state.gameOver) return;
-    const p = state.player;
-
-    if (p.klass === "Wizard") {
-        if (p.charges <= 0) {  
-            logLine("No spells left.", "warn");
-            return;
-        }
-        p.charges -= 1;
-
-        const roll = d20() + p.stats.INT;
-        if (roll >= 10) {
-            const target = pickTarget();
-            const dmg = 7 + p.stats.INT + p.weaponLevel;
-            target.hp = clamp(target.hp - dmg, 0, target.hpMax);
-            logLine(`Spell: (d20 + INT = ${roll}) FAIL it fizzles.`, "bad");
-        }
-        endPlayerAction();
-        return;
-    }
-
-    if (p.klass === "Cleric") {
-        if (p.charges <= 0) {
-            logLine("No heals left.", "warn");
-            return;
-        }
-        p.charges -= 1;
-
-        const heal = d6() + 4;
-        p.hp = clamp(p.hp + heal, 0, p.hpMax);
-        logLine(`Heal restores ${heal} HP.`, "good");
-        endPlayerAction();
-        return;
-    }
-
-    if (p.klass === "Rogue") {
-        const roll = d20() + p.stats.DEX + 2;
-        if (roll >= 12) {
-            logLine(`Dodge: (d20 + DEX = ${roll}) SUCCESS! You avoid the counterattack.`, "good");
-            finishCombatIfDone();
-            updateUI();
-            return;
-        } else {
-            logLine(`Dodge: (d20 + DEX = ${roll}) FAIL! You can't dodge for shit.`, "bad");
-            enemyTurn();
-            finishCombatIfDone();
-            updateUI();
-            return;
-        }
-    }
-
-    const roll = d20();
-    if (roll >= 8) {
-        const target = pickTarget();
-        const dmg = attackDamageBase() + 3;
-        target.hp = clamp(target.hp - dmg, 0, target.hpMax);
-        logLine(`Power Strike: d20(${roll}) HIT! ${target.name} takes ${dmg}.`, "good");
-        shake($(barEnemiesHp));
-    } else {
-        logLine(`Power Strike: d20(${roll}) FAIL! You didn't have your daily white monster all your energy is drained.`, "bad")
-    }
-
-    endPlayerAction();
+// ---------- Checks / mechanics ----------
+function rollCheck(statKey, difficulty = 10) {
+  const p = state.player;
+  const roll = d20();
+  const total = roll + p.stats[statKey];
+  return { roll, total, success: total >= difficulty, difficulty };
 }
 
-function doPotion() {
-    if (!isInCombat() || state.gameOver) return;
-    const p = state.player;
-    if (p.potions <= 0) {
-        logLine("No potions left.", "warn");
-        return;
-    }
-
-    p.potions -= 1;
-    const heal = d6() = 6;
-    p.hp = clamp(p.hp + heal, 0, p.hpMax);
-    logLine(`You drink a potion and heal ${heal} HP.`, "good");
-    endPlayerAction();
-}
-
-function doRunFromCombat() {
-    if (!isInCombat() || state.gameOver) return;
-    const p = state.player;
-    const roll = d20() + p.stats.DEX;
-    if (roll >= 12) {
-        logLine(`Run: (d20 + DEX = ${roll}) SUCCESS! You escape the room!`, "good");
-        state.enemies.forEach(e => e.hp = 0);
-        finishCombatIfDone(true);
-    } else{
-        logLine(`Run: (d20 + DEX = ${roll}) FAIL! You slip on a comidically placed banana peel!`, "bad");
-        enemyTurn();
-        finishCombatIfDone();
-    }
-    updateUI();
-}
-
-function endPlayerAction() {
-    enemyTurn();
-    finishCombatIfDone();
-    updateUI();
+function getTargetEnemy() {
+  const id = el.selTarget.value;
+  const alive = livingEnemies();
+  if (!id) return alive[0] || null;
+  return alive.find(e => e.id === id) || alive[0] || null;
 }
 
 function enemyTurn() {
-    const p = state.player;
-    const alive = livingEnemies();
-    if (!alive.length) return;
+  const p = state.player;
+  const alive = livingEnemies();
+  if (!p || alive.length === 0) return;
 
-    for (const e of alive) {
-        const roll = d20() + e.atkBonus;
-        if (roll >= 10) {
-            const dmg = d6() + (e.isBoss ? 2 : 0);
-            p.hp = clamp(p.hp -dmg, 0, p.hpMax);
-            logLine(`${e.name} attacks! (d20 + ${e.atkBonus} = ${roll}) HIT! You take ${dmg}.`, "bad");
-            shake($(barPlayerHp));
-            if (checkGameOver()) return;
-        } else {
-            logLine(`${e.name} attacks! (d20 + ${e.atkBonus} = ${roll}) MISS!`, "warn");
-        }
+  for (const e of alive) {
+    const roll = d20();
+    const total = roll + e.atkBonus;
+    const hit = total >= 10;
+
+    if (hit) {
+      const dmg = d6() + (e.isBoss ? 2 : 0);
+      p.hp = clamp(p.hp - dmg, 0, p.hpMax);
+      logLine(`${e.name}: d20(${roll})+${e.atkBonus}=${total} HIT • You take ${dmg}.`);
+      el.barPlayerHp.classList.add("hit");
+      setTimeout(() => el.barPlayerHp.classList.remove("hit"), 200);
+    } else {
+      logLine(`${e.name}: d20(${roll})+${e.atkBonus}=${total} MISS.`);
     }
+    if (p.hp <= 0) break;
+  }
+
+  checkEndStates();
+  updateUI();
 }
 
-function finishCombatIfDone(ranAwayn= false) {
-    const alive = livingEnemies();
-    if(alive.length) return;
+function awardLoot() {
+  const p = state.player;
 
-    if (state.room.type === "boss") {
-        logLine("You defeated the Goblin Chief and cleared the dungeon!", "good");
-        state.gameOver = true;
-        setControls({ roomChoices: false, combat: false, nextRoom: false, merchant: false});
-        $("nextRoomBtn").disabled = true;
-        updateUI();
-        return;
-    }
+  const gold = 4 + d6();
+  p.gold += gold;
 
-    if (!ranAway) {
-        const p = state.player;
-        const gold = randInt (4, 12);
-        p.gold += gold;
-        if (randInt(1, 100) <= 35) p.potions += 1;
+  const potionDrop = Math.random() < 0.25;
+  const weaponDrop = Math.random() < 0.18;
 
-        logLine(`Combat loot: +${gold}g ${p.potions ? "" : ""}`, "good");
-        if (randInt (1, 100) <= 35) {
-            p.weaponLevel += 1;
-            logLine(`you find a better blade! (weapon + ${p.weaponLevel})`, "good");
-        }
-    }
+  if (potionDrop) p.potions += 1;
+  if (weaponDrop) p.weaponLevel = clamp(p.weaponLevel + 1, 0, 5);
 
-    logLine("Room cleared. Choose a path to continue.", "info");
-    setControls({ roomChoices: true, combat: false, nextRoom: true, merchant: false});
-    $(nextRoomBtn).disabled = false;
+  const parts = [`+${gold}g`];
+  if (potionDrop) parts.push("+1 potion");
+  if (weaponDrop) parts.push(`weapon +1 (now +${p.weaponLevel})`);
+  logLine(`Loot: ${parts.join(", ")}.`, "loot");
 }
 
-function checkGameOver() {
-    const p = state.player;
-    if (p.hp <= 0) {
-        logLine("You fall to your knees huzzless losing all your aura. Game Over!", "bad");
-        state.gameOver = true;
-        setControls({ roomChoices: false, combat: false, nextRoom: false, merchant: false});
-        $("nextRoomBtn").disabled = true;
-        return true;
+function checkEndStates() {
+  const p = state.player;
+  if (!p) return;
+
+  if (p.hp <= 0) {
+    state.gameOver = true;
+    setActionButtons(false);
+    setNavButtons(false);
+    logLine("💀 You have fallen. Game Over.");
+    return;
+  }
+
+  if (livingEnemies().length === 0 && (state.room?.type === "COMBAT" || state.room?.type === "BOSS")) {
+    setActionButtons(false);
+    state.awaitingNav = true;
+
+    // XP first, then loot
+    const isBoss = state.room.type === "BOSS";
+    gainXp(isBoss ? 50 : (10 + state.roomIndex));
+    awardLoot();
+
+    if (state.roomIndex === state.maxRooms) {
+      state.gameOver = true;
+      setNavButtons(false);
+      logLine("The Goblin King is defeated. You win!");
+      return;
     }
-    return false;
+
+    logLine("Room cleared. Choose a direction to continue.");
+    setNavButtons(true);
+  }
 }
 
-function buyPotion () {
-    const p = state.player;
-    if (!state.merchantHere) return;
-    if (p,gold < 10) {logLine("Not enough gold for a potion (10g).", "warn"); return;}
-    p.gold -= 10;
-    p.potions += 1;
-    logLine("You buy a potion (+1).", "good");
+// ---------- Room flow ----------
+function enterRoom(dirLabel) {
+  state.room = generateRoom(state.roomIndex, dirLabel);
+  state.awaitingNav = false;
+  setNavButtons(false);
+
+  logLine(`\n— Room ${state.roomIndex}: ${state.room.title} —`);
+  logLine(state.room.desc);
+
+  if (state.room.type === "COMBAT" || state.room.type === "BOSS") {
+    state.enemies = makeEnemiesForRoom(state.roomIndex);
+    setActionButtons(true);
     updateUI();
+    return;
+  }
+
+  setActionButtons(false);
+  state.enemies = [];
+
+  const p = state.player;
+
+  if (state.room.type === "TREASURE") {
+    awardLoot();
+  } else if (state.room.type === "REST") {
+    const heal = 4 + d6();
+    p.hp = clamp(p.hp + heal, 0, p.hpMax);
+    logLine(`You recover ${heal} HP.`);
+  } else { // EVENT
+    const r = Math.random();
+    if (r < 0.33) {
+      const dmg = 3 + d6();
+      p.hp = clamp(p.hp - dmg, 0, p.hpMax);
+      logLine(`⚠️ A trap snaps! You take ${dmg} damage.`);
+    } else if (r < 0.66) {
+      const gold = 3 + d6();
+      p.gold += gold;
+      logLine(`✨ You find scattered coins: +${gold}g.`);
+    } else {
+      p.potions += 1;
+      logLine("You find a potion: +1 potion.");
+    }
+  }
+
+  state.awaitingNav = true;
+  setNavButtons(true);
+  logLine("Pick a direction to continue.");
+  updateUI();
 }
 
-function buyUpgrade() {
-    const p = state.player;
-    if (!state.merchantHere) return;
-    if (p.gold < 25) {logLine("Not enough gold to upgrade weapon (25g).", "warn"); return;}
-    p.gold -= 25;
-    p.weaponLevel += 1;
-    logLine(`Weapon upgrade! (Weapon + ${p.weaponLevel})`, "good");
+function chooseDirection(dirLabel) {
+  if (state.levelUpPending) return;
+  if (!state.awaitingNav || state.gameOver) return;
+  if (state.roomIndex >= state.maxRooms) return;
+
+  state.roomIndex += 1;
+  enterRoom(dirLabel);
+}
+
+// ---------- Player actions ----------
+function doAttack() {
+  if (state.levelUpPending) return;
+  const p = state.player;
+  const t = getTargetEnemy();
+  if (!p || !t) return;
+
+  const roll = d20();
+  if (roll >= 10) {
+    let dmg = d6() + p.stats.STR + p.weaponLevel;
+    if (p.klass === "Fighter") dmg += 2;
+    t.hp = clamp(t.hp - dmg, 0, t.hpMax);
+    logLine(`Attack: d20(${roll}) HIT • ${t.name} takes ${dmg}.`);
+    el.barEnemiesHp.classList.add("hit");
+    setTimeout(() => el.barEnemiesHp.classList.remove("hit"), 200);
+  } else {
+    logLine(`Attack: d20(${roll}) MISS.`);
+  }
+
+  updateUI();
+  if (livingEnemies().length > 0) enemyTurn();
+  else checkEndStates();
+}
+
+function doSpecial() {
+  if (state.levelUpPending) return;
+  const p = state.player;
+  if (!p) return;
+
+  if (p.klass === "Wizard") {
+    if (p.charges <= 0) { logLine("No spells left."); return; }
+    p.charges -= 1;
+
+    const t = getTargetEnemy();
+    if (!t) return;
+
+    const r = rollCheck("INT", 10);
+    logLine(`Spell: d20(${r.roll})+${p.stats.INT}=${r.total} ${r.success ? "SUCCESS" : "FAIL"}`);
+    if (r.success) {
+      const dmg = 6 + p.stats.INT;
+      t.hp = clamp(t.hp - dmg, 0, t.hpMax);
+      logLine(`Spell hits ${t.name} for ${dmg}.`);
+    } else {
+      logLine("The spell fizzles.");
+    }
+
     updateUI();
+    if (livingEnemies().length > 0) enemyTurn();
+    else checkEndStates();
+    return;
+  }
+
+  if (p.klass === "Cleric") {
+    if (p.charges <= 0) { logLine("No heals left."); return; }
+    p.charges -= 1;
+
+    const heal = d6() + 4;
+    p.hp = clamp(p.hp + heal, 0, p.hpMax);
+    logLine(`Your prayer heals you for ${heal}.`);
+    updateUI();
+    enemyTurn();
+    return;
+  }
+
+  if (p.klass === "Rogue") {
+    const r = rollCheck("DEX", 10);
+    logLine(`Dodge: d20(${r.roll})+${p.stats.DEX}=${r.total} ${r.success ? "SUCCESS" : "FAIL"}`);
+    if (r.success) {
+      logLine("You dodge cleanly—enemies lose their next attacks.");
+      updateUI();
+      return; // skip enemy turn
+    } else {
+      logLine("You mistime the dodge!");
+      updateUI();
+      enemyTurn();
+      return;
+    }
+  }
+
+  // Power strike
+  const t = getTargetEnemy();
+  if (!t) return;
+
+  const roll = d20();
+  if (roll >= 8) {
+    let dmg = d6() + p.stats.STR + p.weaponLevel + 3;
+    if (p.klass === "Fighter") dmg += 1;
+    t.hp = clamp(t.hp - dmg, 0, t.hpMax);
+    logLine(`Power Strike: d20(${roll}) HIT • ${t.name} takes ${dmg}.`);
+  } else {
+    logLine(`Power Strike: d20(${roll}) FAIL • you overextend.`);
+  }
+
+  updateUI();
+  if (livingEnemies().length > 0) enemyTurn();
+  else checkEndStates();
 }
 
-// Save/Load function
-function serializedState() {
-    return {
-        runId: state.runId,
-        started: state.started,
-        gameOver: state.gameOver,
-        roomIndex: state.roomIndex,
-        maxRooms: state.maxRooms,
-        room: state.room,
-        maerchantHere: state.merchantHere,
-        player: state.player,
-        enemies: state.enemies,
-        log: $("log").innerHTML
-    };
+function doPotion() {
+  if (state.levelUpPending) return;
+  const p = state.player;
+  if (!p) return;
+  if (p.potions <= 0) { logLine("No potions left."); return; }
+
+  p.potions -= 1;
+  const heal = d6() + 6;
+  p.hp = clamp(p.hp + heal, 0, p.hpMax);
+  logLine(`Potion heals you for ${heal}.`);
+  updateUI();
+  enemyTurn();
 }
 
-function restoreState(snapshot) {
-    state.runId = snapshot.runId ?? 0;
-    state.started = !!snapshot.started;
-    state.gameOver = !!snapshot.gameOver;
-    state.roomIndex = snapshot.roomIndex ?? 0;
-    state.maxRooms = snapshot.maxRooms ?? 10;
-    state.room = snapshot.room ?? null;
-    state.merchantHere = !!snapshot.merchantHere;
-    state.player = snapshot.player ?? null;
-    state.enemies = snapshot.enemies ?? [];
-    $("log").innerHTML = snapshot.log ?? "";
+function doFlee() {
+  if (state.levelUpPending) return;
+  const p = state.player;
+  if (!p) return;
 
-    const inCombat = isInCombat();
-    setControls({
-        roomChoices: state.started && !state.gameOver && !state.merchantHere && !inCombat,
-        combat: state.started && !state.gameOver && inCombat,
-        nextRoom: state.started && !state.gameOver && !inCombat,
-        merchant: state.started && !state.gameOver && state.merchantHere,
-    });
+  const r = rollCheck("DEX", p.klass === "Rogue" ? 10 : 11);
+  logLine(`Flee: d20(${r.roll})+${p.stats.DEX}=${r.total} ${r.success ? "SUCCESS" : "FAIL"}`);
 
-    $("nextRoomBtn").disabled = !(state.started && !state.gameOver && !inCombat);
-    setSpecialLabel();
-    updateUI;
+  if (r.success) {
+    logLine("You escape the room (no XP/loot). Choose a new direction.");
+    state.enemies.forEach(e => e.hp = 0);
+    setActionButtons(false);
+    state.awaitingNav = true;
+    setNavButtons(true);
+    updateUI();
+    return;
+  }
+
+  logLine("You fail to escape!");
+  updateUI();
+  enemyTurn();
+}
+
+// ---------- Save / Load / Reset ----------
+function resetGameUI() {
+  el.log.innerHTML = "";
+  setActionButtons(false);
+  setNavButtons(false);
+  updateUI();
+}
+
+function startRun() {
+  resetGameUI();
+
+  state.started = true;
+  state.gameOver = false;
+  state.awaitingNav = false;
+  state.levelUpPending = false;
+  state.queuedLevelUps = 0;
+
+  state.runId += 1;
+  state.player = makePlayer(el.name.value.trim(), el.klass.value, el.boost.value);
+
+  state.roomIndex = 1;
+  logLine(`Welcome, ${state.player.name} the ${state.player.klass}!`);
+  logLine("You enter the dungeon…");
+
+  enterRoom("START");
+  updateUI();
 }
 
 function saveGame() {
-     try {
-        localStorage.setItem(Storage_Key, JSON.stringify(serializeState()));
-        logLine("Saved game to localStorage.", "info");
-    } catch {
-        logLine("Save failed (localStorage blocked?).", "bad");
-    }
+  if (!state.started || !state.player) {
+    logLine("Nothing to save yet.");
+    return;
+  }
+
+  const payload = {
+    ...state,
+    logHtml: el.log.innerHTML,
+  };
+
+  localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+  logLine("Saved.");
 }
 
 function loadGame() {
-    try {
-        const raw = localStorage.getItem(Storage_Key);
-        if (!raw) { logLine("No save found.", "warn"); return; }
-        restoreState(JSON.parse(raw));
-        logLine("Loaded game from localStorage.", "info");
-    } catch {
-        logLine("Load failed (corrupt save).", "bad");
-    }
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) { logLine("No save found."); return; }
+
+  const payload = JSON.parse(raw);
+
+  // restore state
+  state.started = payload.started;
+  state.runId = payload.runId;
+  state.roomIndex = payload.roomIndex;
+  state.maxRooms = payload.maxRooms;
+  state.room = payload.room;
+
+  state.player = payload.player;
+  state.enemies = payload.enemies || [];
+  state.awaitingNav = payload.awaitingNav;
+  state.gameOver = payload.gameOver;
+
+  // close modal on load (safe)
+  state.levelUpPending = false;
+  state.queuedLevelUps = payload.queuedLevelUps || 0;
+  el.lvlOverlay.classList.add("hidden");
+  el.lvlOverlay.setAttribute("aria-hidden", "true");
+
+  // fix xpToNext if missing
+  if (state.player && typeof state.player.xpToNext !== "number") {
+    state.player.xpToNext = xpNeededForLevel(state.player.level || 1);
+  }
+
+  el.log.innerHTML = payload.logHtml || "";
+  logLine("Loaded.");
+
+  const inCombat = (state.room?.type === "COMBAT" || state.room?.type === "BOSS") && livingEnemies().length > 0;
+  setActionButtons(inCombat && !state.gameOver);
+  setNavButtons(state.awaitingNav && !state.gameOver);
+
+  updateUI();
 }
 
-function choosePath(dir) {
-    if (!state.started || state.gameOver) return;
-    if (isInCombat() || state.merchantHere) return;
-
-    const p = state.player;
-
-    let roll = d20();
-    let mod = 0;
-
-    if (dir === "left") mod = p.stats.INT;
-    if (dir === "forward") mod = p.stats.STR;
-    if (dir === "right") mod = p.stats.DEX;
-
-    const total = roll + mod;
-    logLine(`You go ${dir.toUpperCase()} (d20 + mod = ${total})`, "info");
-
-    let forced = null;
-    if (total >= 16) {
-        forced = randInt(1, 100) <= 55 ? "treasure" : "rest";
-        logLine("You find a safer route.", "good");
-    } else if (total <= 8) {
-        forced = randInt(1, 100) <= 55 ? "trap" : "combat";
-        logLine("You stumble into danger.", "bad");
-    }
-
-    nextRoom(forced);
-}
-
-// init / events
 function resetAll() {
-    state.started = false;
-    state.gameOver = false;
-    state.roomIndex = 0;
-    state.maxRooms = 10;
-    state.room = null;
-    state.enemies = [];
-    state.merchantHere = false;
-    state.player = null;
+  state.started = false;
+  state.roomIndex = 0;
+  state.room = null;
+  state.player = null;
+  state.enemies = [];
+  state.awaitingNav = false;
+  state.gameOver = false;
+  state.levelUpPending = false;
+  state.queuedLevelUps = 0;
 
-    $("log").innerHTML = "";
-    setControls ({ roomChoices: false, combat: false, nextRoom: false, merchant: false});
-    $("nextRoomBtn").disabled = true;
-    updateUI();
+  el.lvlOverlay.classList.add("hidden");
+  el.lvlOverlay.setAttribute("aria-hidden", "true");
+
+  resetGameUI();
+  logLine("Reset.");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    $("StartBtn").addEventListener("click", startRun);
-    $("ResetBtn").addEventListener("click", resetAll);
-    $("saveBtn").addEventListener("click", saveGame);
-    $("loadBtn").addEventListener("click", loadGame);
-    $("clearLogBtn").addEventListener("click", () => ($("log").innerHTML = ""));
+// ---------- Events ----------
+el.btnStart.addEventListener("click", startRun);
+el.btnSave.addEventListener("click", saveGame);
+el.btnLoad.addEventListener("click", loadGame);
+el.btnReset.addEventListener("click", resetAll);
 
-    $("leftBtn").addEventListener("click", () => choosePath("left"));
-    $("forwardBtn").addEventListener("click", () => choosePath("forward"));
-    $("rightBtn").addEventListener("click", () => choosePath("right"));
+el.btnAttack.addEventListener("click", doAttack);
+el.btnSpecial.addEventListener("click", doSpecial);
+el.btnPotion.addEventListener("click", doPotion);
+el.btnFlee.addEventListener("click", doFlee);
 
-    $("attackBtn").addEventListener("click", doAttack);
-    $("specialBtn").addEventListener("click", doSpecial);
-    $("potionBtn").addEventListener("click", doPotion);
-    $("runBtn").addEventListener("click", doRunFromCombat);
+el.btnLeft.addEventListener("click", () => chooseDirection("LEFT"));
+el.btnForward.addEventListener("click", () => chooseDirection("FORWARD"));
+el.btnRight.addEventListener("click", () => chooseDirection("RIGHT"));
+el.btnNextRoom.addEventListener("click", () => chooseDirection("CONTINUE"));
 
-    $("nextRoomBtn").addEventListener("click", () => {
-        if (!state.started || state.gameOver) return;
-        if (isInCombat()) return;
-        if (state.merchatHere) return;
-        nextRoom(null);
-    });
+el.btnLvlStr.addEventListener("click", () => applyLevelChoice("STR"));
+el.btnLvlDex.addEventListener("click", () => applyLevelChoice("DEX"));
+el.btnLvlInt.addEventListener("click", () => applyLevelChoice("INT"));
+el.btnLvlCha.addEventListener("click", () => applyLevelChoice("CHA"));
 
-    $("buyPotionBtn").addEventListener("click", buyPotion);
-    $("buyUpgradeBtn").addEventListener("click", buyUpgrade);
-
-    resetAll();
-    logLine("Create a character and press Start Run.", "info");
-});
+// Init
+resetAll();
