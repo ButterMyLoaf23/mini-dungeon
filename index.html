@@ -57,8 +57,8 @@
                     <div class="panel">
                         <h3>Enemies</h3>
                         <div class="enemyControls">
-                            <label for="selectTarget" class="muted">Target</label>
-                            <select id="selectTarget"></select>
+                            <label for="selTarget" class="muted">Target</label>
+                            <select id="selTarget"></select>
                         </div>
                         <div class="enemyList" id="uiEnemyList"></div>
                     </div>
@@ -67,9 +67,11 @@
                         <h3>Inventory</h3>
                         <div class="invGrid">
                             <div class="invItem"><span class="muted">Class</span><b id="uiClass">-</b></div>
-                            <div class="invItem"><span class="muted">Gold</span><b id="uiGold">-</b> </div>
-                            <div class="invItem"><span class="muted">Potions</span><b id="uiPotions">-</b> </div>
-                            <div class="invItem"><span class="muted">Weapon</span><b id="uiWeapon">-</b> </div>
+                            <div class="invItem"><span class="muted">Gold</span><b id="uiGold">-</b></div>
+                            <div class="invItem"><span class="muted">Potions</span><b id="uiPotions">-</b></div>
+                            <div class="invItem"><span class="muted">Weapon</span><b id="uiWeapon">-</b></div>
+                            <div class="invItem"><span class="muted">Level</span><b id="uiLevel">-</b></div>
+                            <div class="invItem"><span class="muted">XP</span><b id="uiXp">-</b></div>
                         </div>
                         <div class="muted statsLine" id="uiStats">-</div>
                     </div>
@@ -115,10 +117,10 @@
                 </select>
 
                 <div class="actions">
-                    <button id="startBtn">Start</button>
-                    <button id="saveBtn">Save</button>
-                    <button id="loadBtn">Load</button>
-                    <button id="resetBtn">Reset</button>
+                    <button id="btnStart">Start</button>
+                    <button id="btnSave">Save</button>
+                    <button id="btnLoad">Load</button>
+                    <button id="btnReset">Reset</button>
                 </div>
             </aside>
         </main>
@@ -138,7 +140,7 @@
         </div>
     </div>
 
-    <script src="js/main.js"></script>
+    <script src="/js/main.js"></script>
     </body>
     </html>
 <!-- 
