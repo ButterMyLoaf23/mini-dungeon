@@ -70,7 +70,7 @@ const state = {
   started: false,
   runId: 0,
   roomIndex: 0,
-  maxRooms: 7, // boss at final room
+  maxRooms: 15, // boss at final room
   room: null,
 
   player: null,
@@ -206,7 +206,7 @@ function updateTargets() {
   for (const e of alive) {
     const opt = document.createElement("option");
     opt.value = e.id;
-    opt.textContent = `${e.name} (${e.hp}/${e.hpMax})${e.isBoss ? " ★" : ""}`;
+    opt.textContent = `${e.name} (${e.hp}/${e.hpMax})${e.isBoss ? "" : ""}`;
     el.selTarget.appendChild(opt);
   }
 }
@@ -242,7 +242,7 @@ function setSpecialLabel() {
   const p = state.player;
   if (!p) { el.btnSpecial.textContent = "Special"; return; }
   if (p.klass === "Wizard") el.btnSpecial.textContent = "Cast Spell";
-  else if (p.klass === "Cleric") el.btnSpecial.textContent = "Heal Prayer";
+  else if (p.klass === "Cleric") el.btnSpecial.textContent = "Healing Prayer";
   else if (p.klass === "Rogue") el.btnSpecial.textContent = "Dodge";
   else el.btnSpecial.textContent = "Power Strike";
 }
@@ -455,7 +455,7 @@ function checkEndStates() {
     state.gameOver = true;
     setActionButtons(false);
     setNavButtons(false);
-    logLine("💀 You have fallen. Game Over.");
+    logLine("You have no aura, no rizz, and no bitches. Game Over.");
     return;
   }
 
