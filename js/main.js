@@ -178,9 +178,16 @@ function totalEnemyHpMax() {
 function rollRoomType(roomIndex) {
   if (roomIndex === state.maxRooms) return "BOSS";
   const r = Math.random();
-  if (r < 0.55) return "COMBAT";
-  if (r < 0.72) return "TREASURE";
-  if (r < 0.88) return "EVENT";
+
+    const depth = roomIndex / state.maxRooms;
+    const combatChance = 0.45 + depth * 0.25;
+    const treasureChance = 0.20;
+    const eventChance = 0.25;
+    const restChance = 1 - ( combatChance + treasureChance + eventChance );
+
+  if (r < combatChance) return "COMBAT";
+  if (r < combatChance + treasureChance) return "TREASURE";
+  if (r < combatChance + treasureChance + eventChance) return "EVENT";
   return "REST";
 }
 
